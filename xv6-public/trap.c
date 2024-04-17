@@ -50,7 +50,10 @@ trap(struct trapframe *tf)
   case T_IRQ0 + IRQ_TIMER:
     if(cpuid() == 0){
       acquire(&tickslock);
-      if(++tick == 100) ticks = 0;
+      if(++tick == 100){
+        ticks = 0;
+        priority_boosting();
+      }
       ticks++;
       myproc()->tick++;
       wakeup(&ticks);

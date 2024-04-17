@@ -26,6 +26,64 @@ extern void trapret(void);
 
 static void wakeup1(void *chan);
 // personal implementation
+int
+getlev(void)
+{
+  if(myproc()->qlev == 4)
+  {
+    return 99;
+  }
+  return myproc()->qlev;
+}
+
+int
+setpriority(int pid, int priority)
+{
+  if(priority < 0 || priority > 10)
+  {
+    return -2;
+  }
+
+  struct proc *p;
+  acquire(&ptable.lock);
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+  {
+    if(p->pid == pid)
+    {
+      p->priority = priority;
+      release(&ptable.lock);
+      return 0;
+    }
+  }
+  release(&ptable.lock);
+  return -1;  
+}
+
+int
+setmonopoly(int pid, int password)
+{
+  int pwd = 2020005996;
+  struct proc *p;
+  if(pwd != password)
+  {
+    return -2;
+  }
+  acquire(&ptable.lock);
+
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+  {
+    if(p->pid == pid)
+    {
+      dequeue(p->qlev);
+      enqueue(p->qlev,4);
+      release(&ptable.lock);
+      return ptable.qcount[4];
+    }    
+  }
+  release(&ptable.lock);
+  return -1;
+}
+
 void
 monopolize(void)
 {
@@ -37,7 +95,7 @@ unmonopolize(void)
 {
   ismono = 0;
 }
-
+/////////////
 int
 selectproc()
 {
@@ -103,7 +161,7 @@ dequeue(int qlev)
 void
 clearqueue()
 {
-  for(int i = 0; i < 5; i++)
+  for(int i = 0; i < 4; i++)
   {
     for(int j = 0; j < NPROC; j++)
     {
@@ -116,13 +174,19 @@ clearqueue()
 void
 priority_boosting(void)
 {
-  clearqueue();
-  struct proc *p = ptable.proc;
+  if(!ismono)
+  {  
+    clearqueue();
+    struct proc *p = ptable.proc;
   
-  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
-  {
-    p->tick = 0;
-    enqueue(0, p->pid);
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+    {
+      if(p->qlev != 4)
+      {
+        p->tick = 0;
+        enqueue(0, p->pid);
+      }
+    }
   }
 }
 //
@@ -445,26 +509,48 @@ scheduler(void)
 
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE)
-        continue;
 
-      // Switch to chosen process.  It is the process's job
-      // to release ptable.lock and then reacquire it
-      // before jumping back to us.
-      c->proc = p;
-      switchuvm(p);
-      p->state = RUNNING;
+    whatproc = selectproc();
+    
+    if(!whatproc){
+      release(&ptable.lock);
+      continue;
+    };
 
-      swtch(&(c->scheduler), p->context);
-      switchkvm();
+    c->proc = p;
+    switchuvm(p);
+    p->state = RUNNING;
+    swtch(&(c->scheduler), p->context);
+    switchkvm();
+    c-proc = 0;
 
-      // Process is done running for now.
-      // It should have changed its p->state before coming back.
-      c->proc = 0;
+    while(p->state == RUNNING && p->tick < p->qlev*2 + 2)
+      ;
+    
+    if(p->qlev < 4)
+    {
+      if(p->state == RUNNING && p->tick = p->qlev*2 + 2){
+        p->state = RUNNABLE;
+        p->tick = 0;
+      }  
+
+      if(p->state == RUNNABLE){
+        if(p->qlev == 0){
+          enqueue((p->pid % 2 == 0) ? 2 : 1, p->pid);
+          dequeue(p->qlev);
+        }        
+        if(p->qlev == 1 || p->qlev == 2){
+          enqueue(3, p-pid);
+          dequeue(p->qlev);
+        }
+        if(p->qlev == 3){
+          if(p->priority){
+            p->priority--;
+          }
+        }
+      }
     }
     release(&ptable.lock);
-
   }
 }
 
