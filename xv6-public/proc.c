@@ -10,16 +10,122 @@
 struct {
   struct spinlock lock;
   struct proc proc[NPROC];
+
+  int Mqueue[5][NPROC];
+  int qcount[5];
 } ptable;
 
 static struct proc *initproc;
 
 int nextpid = 1;
+int whatproc = 0;
+int ismono = 0;
+
 extern void forkret(void);
 extern void trapret(void);
 
 static void wakeup1(void *chan);
+// personal implementation
+void
+monopolize(void)
+{
+  ismono = 1;
+}
 
+void
+unmonopolize(void)
+{
+  ismono = 0;
+}
+
+int
+selectproc()
+{
+  if(ismono) //monopolized
+  {
+    for(int i = 0; i < ptable.qcount[4]; i++)
+    {
+      struct proc *p = &ptable.proc[ptable.Mqueue[4][i]];
+      if(p->state == RUNNABLE)
+      {
+        return ptable.queue[4][i];
+      }
+    }
+  }
+
+  for(int i = 0; i < 3; i++)
+  {
+    for(int j = 0; j < ptable.qcount[i]; j++)
+    {
+      struct proc *p = &ptable.proc[ptable.Mqueue[i][j]];
+      if(p->state == RUNNABLE)
+      {
+        return ptable.queue[i][j];
+      }
+    }
+  }
+  
+  int top_priority = -1;
+  for(int i = 0; i < ptable.size[3]; i++)
+  {
+    struct proc *p = &ptable.proc[ptable.queue[3][i]];
+    if(p->state == RUNNABLE)
+    {
+      if(top_priority == -1 || p-> priority > ptable.proc[top_priority].priority)
+      {
+        top_priority = ptable.Mqueue[3][i];
+      }
+    }
+  }
+  if(top_priority != -1)
+  {
+    return top_priority;
+  }
+
+  return -1;
+}
+
+void
+enqueue(int qlev, int, pid)
+{
+  ptable.Mqueue[qlev][ptable.qcount[qlev]] = pid;
+  ptable.qcount[qlev]++;
+}
+
+void
+dequeue(int qlev)
+{
+  for(int i = 0; i < NPROC; i++)
+    ptable.Mqueue[qlev][i] = ptable.Mqueue[qlev][i + 1];
+    ptable.qcount[qlev]--;
+}
+
+void
+clearqueue()
+{
+  for(int i = 0; i < 5; i++)
+  {
+    for(int j = 0; j < NPROC; j++)
+    {
+      ptable.Mqueue[i][j] = 0;
+    }
+    ptable.qcount[i] = 0;
+  }
+}
+
+void
+priority_boosting(void)
+{
+  clearqueue();
+  struct proc *p = ptable.proc;
+  
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+  {
+    p->tick = 0;
+    enqueue(0, p->pid);
+  }
+}
+//
 void
 pinit(void)
 {
@@ -88,6 +194,13 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
+  p->qlev = 0;
+  p->priority = 0;
+
+  if(ptable.qcount[0] < NPROC){
+    ptable.Mqueue[0][ptable.qcount[0]] = p->pid;
+    ptable.qcount[0]++;
+  }
 
   release(&ptable.lock);
 
