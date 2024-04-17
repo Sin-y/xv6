@@ -40,3 +40,10 @@ void* malloc(uint);
 void free(void*);
 int atoi(const char*);
 
+// proc.c
+void yield(void);
+int getlev(void);
+int setpriority(int pid, int priority);
+int setmonopoly(int pid, int password);
+void monopolize(void);
+void unmonopolize(void);

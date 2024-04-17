@@ -26,6 +26,25 @@ extern void trapret(void);
 
 static void wakeup1(void *chan);
 // personal implementation
+
+void
+enqueue(int qlev, int pid)
+{
+  ptable.Mqueue[qlev][ptable.qcount[qlev]] = pid;
+  ptable.qcount[qlev]++;
+}
+
+void
+dequeue(int qlev)
+{
+  for(int i = 0; i < NPROC - 1; i++)
+  {
+    ptable.Mqueue[qlev][i] = ptable.Mqueue[qlev][i + 1];
+  }
+  ptable.Mqueue[qlev][NPROC - 1] = 0;
+  ptable.qcount[qlev]--;
+}
+
 int
 getlev(void)
 {
@@ -106,7 +125,7 @@ selectproc()
       struct proc *p = &ptable.proc[ptable.Mqueue[4][i]];
       if(p->state == RUNNABLE)
       {
-        return ptable.queue[4][i];
+        return ptable.Mqueue[4][i];
       }
     }
   }
@@ -118,15 +137,15 @@ selectproc()
       struct proc *p = &ptable.proc[ptable.Mqueue[i][j]];
       if(p->state == RUNNABLE)
       {
-        return ptable.queue[i][j];
+        return ptable.Mqueue[i][j];
       }
     }
   }
   
   int top_priority = -1;
-  for(int i = 0; i < ptable.size[3]; i++)
+  for(int i = 0; i < ptable.qcount[3]; i++)
   {
-    struct proc *p = &ptable.proc[ptable.queue[3][i]];
+    struct proc *p = &ptable.proc[ptable.Mqueue[3][i]];
     if(p->state == RUNNABLE)
     {
       if(top_priority == -1 || p-> priority > ptable.proc[top_priority].priority)
@@ -143,20 +162,6 @@ selectproc()
   return -1;
 }
 
-void
-enqueue(int qlev, int, pid)
-{
-  ptable.Mqueue[qlev][ptable.qcount[qlev]] = pid;
-  ptable.qcount[qlev]++;
-}
-
-void
-dequeue(int qlev)
-{
-  for(int i = 0; i < NPROC; i++)
-    ptable.Mqueue[qlev][i] = ptable.Mqueue[qlev][i + 1];
-    ptable.qcount[qlev]--;
-}
 
 void
 clearqueue()
@@ -516,20 +521,21 @@ scheduler(void)
       release(&ptable.lock);
       continue;
     };
-
+    
+    p = &ptable.proc[whatproc];
     c->proc = p;
     switchuvm(p);
     p->state = RUNNING;
     swtch(&(c->scheduler), p->context);
     switchkvm();
-    c-proc = 0;
+    c->proc = 0;
 
     while(p->state == RUNNING && p->tick < p->qlev*2 + 2)
       ;
     
     if(p->qlev < 4)
     {
-      if(p->state == RUNNING && p->tick = p->qlev*2 + 2){
+      if(p->state == RUNNING && p->tick == p->qlev*2 + 2){
         p->state = RUNNABLE;
         p->tick = 0;
       }  
@@ -540,7 +546,7 @@ scheduler(void)
           dequeue(p->qlev);
         }        
         if(p->qlev == 1 || p->qlev == 2){
-          enqueue(3, p-pid);
+          enqueue(3, p->pid);
           dequeue(p->qlev);
         }
         if(p->qlev == 3){
