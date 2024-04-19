@@ -62,5 +62,11 @@ struct proc {
 //   original data and bss
 //   fixed-size stack
 //   expandable heap
-
+void yield(void);
+int getlev(void);
+int setpriority(int pid, int priority);
+int setmonopoly(int pid, int password);
+void monopolize(void);
+void unmonopolize(void);
 void priority_boosting();
+void increasetick();

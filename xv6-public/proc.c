@@ -7,6 +7,7 @@
 #include "proc.h"
 #include "spinlock.h"
 
+
 struct {
   struct spinlock lock;
   struct proc proc[NPROC];
@@ -18,14 +19,14 @@ struct {
 static struct proc *initproc;
 
 int nextpid = 1;
-int whatproc = 0;
+int whatproc = -1;
 int ismono = 0;
 
 extern void forkret(void);
 extern void trapret(void);
 
 static void wakeup1(void *chan);
-// personal implementation
+//  personal implementation
 
 void
 enqueue(int qlev, int pid)
@@ -170,7 +171,7 @@ clearqueue()
   {
     for(int j = 0; j < NPROC; j++)
     {
-      ptable.Mqueue[i][j] = 0;
+      ptable.Mqueue[i][j] = -1;
     }
     ptable.qcount[i] = 0;
   }
@@ -182,7 +183,7 @@ priority_boosting(void)
   if(!ismono)
   {  
     clearqueue();
-    struct proc *p = ptable.proc;
+    struct proc *p;
   
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     {
@@ -194,7 +195,18 @@ priority_boosting(void)
     }
   }
 }
-//
+
+void
+increasetick()
+{
+  if(myproc())
+  {
+    acquire(&ptable.lock);
+    myproc()->tick++;
+    release(&ptable.lock);
+  }
+}
+/////
 void
 pinit(void)
 {
@@ -265,11 +277,12 @@ found:
   p->pid = nextpid++;
   p->qlev = 0;
   p->priority = 0;
-
+  
   if(ptable.qcount[0] < NPROC){
     ptable.Mqueue[0][ptable.qcount[0]] = p->pid;
     ptable.qcount[0]++;
   }
+  
 
   release(&ptable.lock);
 
@@ -517,7 +530,7 @@ scheduler(void)
 
     whatproc = selectproc();
     
-    if(!whatproc){
+    if(whatproc == -1){
       release(&ptable.lock);
       continue;
     };
@@ -529,33 +542,7 @@ scheduler(void)
     swtch(&(c->scheduler), p->context);
     switchkvm();
     c->proc = 0;
-
-    while(p->state == RUNNING && p->tick < p->qlev*2 + 2)
-      ;
     
-    if(p->qlev < 4)
-    {
-      if(p->state == RUNNING && p->tick == p->qlev*2 + 2){
-        p->state = RUNNABLE;
-        p->tick = 0;
-      }  
-
-      if(p->state == RUNNABLE){
-        if(p->qlev == 0){
-          enqueue((p->pid % 2 == 0) ? 2 : 1, p->pid);
-          dequeue(p->qlev);
-        }        
-        if(p->qlev == 1 || p->qlev == 2){
-          enqueue(3, p->pid);
-          dequeue(p->qlev);
-        }
-        if(p->qlev == 3){
-          if(p->priority){
-            p->priority--;
-          }
-        }
-      }
-    }
     release(&ptable.lock);
   }
 }
@@ -592,6 +579,27 @@ yield(void)
 {
   acquire(&ptable.lock);  //DOC: yieldlock
   myproc()->state = RUNNABLE;
+  myproc()->tick = 0;
+  if(myproc()->qlev == 0)
+  {
+    dequeue(myproc()->qlev);
+    myproc()->qlev = (myproc()->pid % 2 == 0) ? 2 : 1;
+    enqueue(myproc()->qlev, myproc()->pid);
+  }
+  
+  else if(myproc()->qlev == 1 || myproc()->qlev == 2)
+  {
+    dequeue(myproc()->qlev);
+    myproc()->qlev = 3;
+    enqueue(myproc()->qlev, myproc()->pid);
+  }
+  else if(myproc()->qlev == 3)
+  {
+    if(myproc()->priority)
+    {
+      myproc()->priority--;
+    }
+  }
   sched();
   release(&ptable.lock);
 }
