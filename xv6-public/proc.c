@@ -43,7 +43,10 @@ dequeue(int qlev)
     ptable.Mqueue[qlev][i] = ptable.Mqueue[qlev][i + 1];
   }
   ptable.Mqueue[qlev][NPROC - 1] = 0;
-  ptable.qcount[qlev]--;
+  if(ptable.qcount[qlev])
+  {
+    ptable.qcount[qlev]--;
+  }
 }
 
 int
@@ -117,16 +120,35 @@ unmonopolize(void)
 }
 /////////////
 int
+findprocidx(int qlev, int pid)
+{
+  if(pid)
+  {
+    for(int i = 0; i < NPROC; i++)
+    {
+      if(ptable.proc[i].pid == pid)
+      {
+        return i;
+      }
+    }
+  }
+  return -1;
+}
+
+int
 selectproc()
 {
+  struct proc *p;
+  int pidx = -1;
   if(ismono) //monopolized
   {
     for(int i = 0; i < ptable.qcount[4]; i++)
     {
-      struct proc *p = &ptable.proc[ptable.Mqueue[4][i]];
+      pidx = findprocidx(4, ptable.Mqueue[4][i]);
+      p = &ptable.proc[pidx];
       if(p->state == RUNNABLE)
       {
-        return ptable.Mqueue[4][i];
+        return pidx;
       }
     }
   }
@@ -135,32 +157,32 @@ selectproc()
   {
     for(int j = 0; j < ptable.qcount[i]; j++)
     {
-      struct proc *p = &ptable.proc[ptable.Mqueue[i][j]];
+      pidx = findprocidx(i, ptable.Mqueue[i][j]);
+      p = &ptable.proc[pidx];
       if(p->state == RUNNABLE)
       {
-        return ptable.Mqueue[i][j];
+        return pidx;
       }
     }
   }
   
+  pidx = -1;
   int top_priority = -1;
+  int topidx = -1;
   for(int i = 0; i < ptable.qcount[3]; i++)
   {
-    struct proc *p = &ptable.proc[ptable.Mqueue[3][i]];
+    pidx = findprocidx(i, ptable.Mqueue[3][i]);
+    p = &ptable.proc[pidx];
     if(p->state == RUNNABLE)
     {
-      if(top_priority == -1 || p-> priority > ptable.proc[top_priority].priority)
+      if(top_priority == -1 || p->priority > top_priority)
       {
-        top_priority = ptable.Mqueue[3][i];
+        top_priority = p->priority;
+        topidx = pidx;
       }
     }
   }
-  if(top_priority != -1)
-  {
-    return top_priority;
-  }
-
-  return -1;
+  return topidx;
 }
 
 
@@ -171,7 +193,7 @@ clearqueue()
   {
     for(int j = 0; j < NPROC; j++)
     {
-      ptable.Mqueue[i][j] = -1;
+      ptable.Mqueue[i][j] = 0;
     }
     ptable.qcount[i] = 0;
   }
@@ -275,6 +297,7 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
+//  cprintf("npid:%d\n",nextpid); // test
   p->qlev = 0;
   p->priority = 0;
   
@@ -529,12 +552,15 @@ scheduler(void)
     acquire(&ptable.lock);
 
     whatproc = selectproc();
-    
+    cprintf("pid%d\n",whatproc); // test
     if(whatproc == -1){
       release(&ptable.lock);
       continue;
     };
     
+
+    
+//    cprintf("pid:%d\n",whatproc); // test
     p = &ptable.proc[whatproc];
     c->proc = p;
     switchuvm(p);
