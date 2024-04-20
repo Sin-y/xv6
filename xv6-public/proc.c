@@ -231,7 +231,7 @@ priority_boosting(void)
   
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     {
-      if(p->pid && p->qlev != 4)
+      if(p->pid && p->pid != myproc()->pid && p->qlev != 4)
       {
         p->tick = 0;
         enqueue(0, p->pid);
@@ -645,9 +645,15 @@ yield(void)
   myproc()->tick = 0;
   if(myproc()->qlev == 0)
   {
-    dequeue(myproc()->qlev);
-    myproc()->qlev = (myproc()->pid % 2 == 0) ? 2 : 1;
-    enqueue(myproc()->qlev, myproc()->pid);
+    dequeue(0);
+    if(myproc()->pid % 2 == 0)
+    {
+      enqueue(2, myproc()->pid);
+    }
+    if(myproc()->pid % 2 == 1)
+    {
+      enqueue(1, myproc()->pid);
+    }
   }
   
   else if(myproc()->qlev == 1 || myproc()->qlev == 2)
