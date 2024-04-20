@@ -33,7 +33,7 @@ struct context {
 };
 
 enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
-enum procqlev { L0, L1, L2, L3, MoQ };
+enum procqlev { L0, L1, L2, L3, MoQ, NiQ };
 
 // Per-process state
 struct proc {
@@ -70,3 +70,4 @@ void monopolize(void);
 void unmonopolize(void);
 void priority_boosting();
 void increasetick();
+int findprocidx(int qlev, int pid);

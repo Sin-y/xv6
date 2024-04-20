@@ -31,6 +31,9 @@ static void wakeup1(void *chan);
 void
 enqueue(int qlev, int pid)
 {
+  int idx = findprocidx(qlev, pid);
+  struct proc *p = &ptable.proc[idx];
+  p->qlev = qlev;
   ptable.Mqueue[qlev][ptable.qcount[qlev]] = pid;
   ptable.qcount[qlev]++;
 }
@@ -38,14 +41,31 @@ enqueue(int qlev, int pid)
 void
 dequeue(int qlev)
 {
-  for(int i = 0; i < NPROC - 1; i++)
-  {
-    ptable.Mqueue[qlev][i] = ptable.Mqueue[qlev][i + 1];
-  }
-  ptable.Mqueue[qlev][NPROC - 1] = 0;
   if(ptable.qcount[qlev])
   {
+    int idx = findprocidx(qlev, ptable.Mqueue[qlev][0]);
+    struct proc *p = &ptable.proc[idx];
+//    p->qlev = 6;
+    cprintf("dequeued pid : %d\n", p->pid); // test
+    cprintf("before :"); // test /*
+    for(int i = 0; i < ptable.qcount[qlev]; i++)
+    {
+      cprintf("[%d]", ptable.Mqueue[qlev][i]);
+    } 
+    cprintf("\n"); // test */
+    for(int i = 0; i < ptable.qcount[qlev]; i++)
+    {
+      ptable.Mqueue[qlev][i] = ptable.Mqueue[qlev][i + 1];
+    }
+
+    ptable.Mqueue[qlev][ptable.qcount[qlev]] = 0;
     ptable.qcount[qlev]--;
+    cprintf("after :"); // test /*
+    for(int i = 0; i < ptable.qcount[qlev]; i++)
+    {
+      cprintf("[%d]", ptable.Mqueue[qlev][i]);
+    }
+    cprintf("\n");  //test */
   }
 }
 
@@ -189,13 +209,15 @@ selectproc()
 void
 clearqueue()
 {
+
   for(int i = 0; i < 4; i++)
   {
-    for(int j = 0; j < NPROC; j++)
+    int qsz = ptable.qcount[i];
+    for(int j = 0; j < qsz; j++)
     {
-      ptable.Mqueue[i][j] = 0;
+      dequeue(i);
+      cprintf("[%d]lev, %d dequeued\n",i,j);// test
     }
-    ptable.qcount[i] = 0;
   }
 }
 
@@ -203,19 +225,20 @@ void
 priority_boosting(void)
 {
   if(!ismono)
-  {  
+  {
     clearqueue();
     struct proc *p;
   
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     {
-      if(p->qlev != 4)
+      if(p->pid && p->qlev != 4)
       {
         p->tick = 0;
         enqueue(0, p->pid);
       }
     }
   }
+  cprintf("boosting called\n");
 }
 
 void
@@ -297,7 +320,6 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
-//  cprintf("npid:%d\n",nextpid); // test
   p->qlev = 0;
   p->priority = 0;
   
@@ -550,17 +572,32 @@ scheduler(void)
 
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
-
+    for(int i = 0; i < 5; i++) ///
+    {
+      cprintf("L%d: size : %d\n", i, ptable.qcount[i]); //test
+      for(int j = 0; j < ptable.qcount[i]; j++)
+      {
+        cprintf("[%d]",ptable.Mqueue[i][j]);
+      }
+      cprintf("\n");
+    }
+    cprintf("=============================\n");  ///test
+    
     whatproc = selectproc();
-    cprintf("pid%d\n",whatproc); // test
+    for(int i = 0; i < NPROC; i++)
+    {
+      cprintf("[%d, %d]", ptable.proc[i].qlev, ptable.proc[i].pid); // test
+    }
+
     if(whatproc == -1){
       release(&ptable.lock);
+      cprintf("-1 released\n"); // test
       continue;
     };
     
+//;    cprintf("idx %dis selected\n", whatproc ); //test
 
     
-//    cprintf("pid:%d\n",whatproc); // test
     p = &ptable.proc[whatproc];
     c->proc = p;
     switchuvm(p);
