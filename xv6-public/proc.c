@@ -43,16 +43,6 @@ dequeue(int qlev)
 {
   if(ptable.qcount[qlev])
   {
-    int idx = findprocidx(qlev, ptable.Mqueue[qlev][0]);
-    struct proc *p = &ptable.proc[idx];
-//    p->qlev = 6;
-    cprintf("dequeued pid : %d\n", p->pid); // test
-    cprintf("before :"); // test /*
-    for(int i = 0; i < ptable.qcount[qlev]; i++)
-    {
-      cprintf("[%d]", ptable.Mqueue[qlev][i]);
-    } 
-    cprintf("\n"); // test */
     for(int i = 0; i < ptable.qcount[qlev]; i++)
     {
       ptable.Mqueue[qlev][i] = ptable.Mqueue[qlev][i + 1];
@@ -60,12 +50,6 @@ dequeue(int qlev)
 
     ptable.Mqueue[qlev][ptable.qcount[qlev]] = 0;
     ptable.qcount[qlev]--;
-    cprintf("after :"); // test /*
-    for(int i = 0; i < ptable.qcount[qlev]; i++)
-    {
-      cprintf("[%d]", ptable.Mqueue[qlev][i]);
-    }
-    cprintf("\n");  //test */
   }
 }
 
@@ -216,7 +200,6 @@ clearqueue()
     for(int j = 0; j < qsz; j++)
     {
       dequeue(i);
-      cprintf("[%d]lev, %d dequeued\n",i,j);// test
     }
   }
 }
@@ -238,7 +221,6 @@ priority_boosting(void)
       }
     }
   }
-  cprintf("boosting called\n");
 }
 
 void
@@ -572,32 +554,14 @@ scheduler(void)
 
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
-    for(int i = 0; i < 5; i++) ///
-    {
-      cprintf("L%d: size : %d\n", i, ptable.qcount[i]); //test
-      for(int j = 0; j < ptable.qcount[i]; j++)
-      {
-        cprintf("[%d]",ptable.Mqueue[i][j]);
-      }
-      cprintf("\n");
-    }
-    cprintf("=============================\n");  ///test
-    
+
     whatproc = selectproc();
-    for(int i = 0; i < NPROC; i++)
-    {
-      cprintf("[%d, %d]", ptable.proc[i].qlev, ptable.proc[i].pid); // test
-    }
 
     if(whatproc == -1){
       release(&ptable.lock);
-      cprintf("-1 released\n"); // test
       continue;
-    };
-    
-//;    cprintf("idx %dis selected\n", whatproc ); //test
+    }
 
-    
     p = &ptable.proc[whatproc];
     c->proc = p;
     switchuvm(p);
@@ -645,13 +609,14 @@ yield(void)
   myproc()->tick = 0;
   if(myproc()->qlev == 0)
   {
-    dequeue(0);
     if(myproc()->pid % 2 == 0)
     {
+      dequeue(0);
       enqueue(2, myproc()->pid);
     }
     if(myproc()->pid % 2 == 1)
     {
+      dequeue(0);
       enqueue(1, myproc()->pid);
     }
   }
